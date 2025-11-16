@@ -1,4 +1,4 @@
-from proxy import ProxyServer
+from proxy.proxy import ProxyServer
 
 
 with ProxyServer(8090) as proxy:
