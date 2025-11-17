@@ -1,8 +1,31 @@
 
-
-class Socks:
+class SocksProtocolInterpreter:
     def __init__(self) -> None:
-        pass
+        self._address_type = {'IPv4': 1, 'DNS': 2, 'IPv6':3}
+        self_aut_methods = {'noauth': 0, 'GSSAPI': 1, 'UP': 2}
+
+    def handle_authentication_start_request(self, request: bytes) -> dict:
+        bytes_list = list(request)
+        interpreted_request = {}
+
+        interpreted_request['socks_version'] = bytes_list[0]
+        
+        interpreted_request['socks_auth_methods_count'] = bytes_list[1]
+
+        method_counter = 0
+        for method in bytes_list[2:]:
+            method_counter += 1
+            interpreted_request[f'auth_method{method_counter}'] = method
 
 
+        print(interpreted_request)
+        return interpreted_request
+        
+
+
+
+
+
+        
+        
     

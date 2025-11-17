@@ -1,11 +1,14 @@
 from socket import AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, socket
 from select import EPOLLIN, epoll
 import time
+from socks_proto.socks import SocksProtocolInterpreter
 
 
 class ProxyServer:
     def __init__(self, port: int) -> None: 
         self._address = ('127.0.0.2', port)
+
+        self._socks_proto = SocksProtocolInterpreter()
 
         self._server_socket = socket(AF_INET, SOCK_STREAM)
         self._server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
@@ -30,9 +33,10 @@ class ProxyServer:
 
 
             bytes = self._client_sockets[fd].recv(1024)
-            if (len(bytes) == 0):
-                self._client_sockets[fd].close()
-                self._client_sockets.pop(fd)
+            self._socks_proto.handle_authentication_start_request(bytes)
+            
+            
+            self._client_sockets[fd].send(b'\x05\x00')
 
 
             
