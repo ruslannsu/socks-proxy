@@ -22,7 +22,6 @@ class SocksProtocolInterpreter:
         return interpreted_request
 
     def interpretate_client_request(self, request) -> dict:
-        print(request)
         bytes_list = list(request)
         interpreted_request = {}
 

@@ -1,5 +1,5 @@
 from socket import AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_ERROR, socket, INADDR_ANY
-from select import EPOLLIN, EPOLLHUP, EPOLLOUT, EPOLLERR, epoll
+from select import EPOLLIN, EPOLLHUP, EPOLLOUT, EPOLLERR, EPOLLRDHUP, epoll
 import time
 from socks_proto.socks import SocksProtocolInterpreter
 from proxy.socket_connection import SocketConnection
@@ -28,7 +28,7 @@ class ProxyServer:
         #self._server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         upstream_socket.setblocking(False)
 
-        self._epoll.register(upstream_socket.fileno(), EPOLLOUT | EPOLLHUP | EPOLLERR)
+        self._epoll.register(upstream_socket.fileno(), EPOLLIN | EPOLLOUT | EPOLLHUP | EPOLLERR | EPOLLRDHUP)
 
         self._sockets[upstream_socket.fileno()] = SocketConnection(sock=upstream_socket, type='upstream_socket', status='wait_connection')
 
@@ -39,26 +39,42 @@ class ProxyServer:
         try:
             upstream_socket.connect((ip, port))
         except Exception as e :
-            print(e)
             pass    
 
 
     def _close_connection(self, fd: int) -> None:
-        sock_conn = self._sockets[fd]
-        sock_conn.sock.close()
+        if fd not in self._sockets:
+            return
+        
         try:
-            desc = sock_conn.socket_pair.sock.fileno()
-            sock_conn.socket_pair.sock.close()
-            try:
-                self._sockets.pop(desc)
-            except KeyError:
-                pass  
-        except AttributeError:
+            sock_conn = self._sockets[fd]
+            desc = sock_conn.sock.fileno()
+            self._epoll.unregister(desc)
+            sock_conn.sock.close()
+        except:
             pass
-        self._sockets.pop(fd)
-        
-        
+            
+        try:
+            self._epoll.unregister(fd)
+        except:
+            pass
+            
+        sock_conn = self._sockets[fd]
+        try:
+            sock_conn.sock.close()
+        except:
+            pass
+            
+        try:
+            del self._sockets[fd]
+        except KeyError:
+            pass
 
+
+
+
+
+        
     def _handle_proxy(self, fd: int):
         socket_conn = self._sockets[fd]
 
@@ -71,6 +87,7 @@ class ProxyServer:
             try:
                 data = socket.recv(10000)
                 if (len(data)) == 0:
+                    print('bb')
                     self._close_connection(fd)
                     return
                 request = self._socks_proto.interpretate_authentication_start_request(request=data)
@@ -95,14 +112,12 @@ class ProxyServer:
             try:
                 data = socket.recv(10240)
                 if (len(data)) == 0:
+                    print('gg')
                     self._close_connection(fd)
                     return
             
                 request = self._socks_proto.interpretate_client_request(data)
                 
-            
-                
-
                 if request['socks_version'] != 5:
                     raise ValueError
                 if request['address_type'] == self._socks_proto._address_type['IPv4']:
@@ -115,8 +130,9 @@ class ProxyServer:
             except BrokenPipeError:
                 self._close_connection(fd)
             except ConnectionResetError:
-                self._close_connection(fd)    
-                 
+                self._close_connection(fd) 
+            except OSError as ose:
+                self._close_connection(fd)
 
         if socket_type == 'upstream_socket' and socket_status == 'wait_connection':
             try:
@@ -130,8 +146,8 @@ class ProxyServer:
                    
             except BrokenPipeError:
                 self._close_connection(fd)
-            except OSError:
-                print('wqqqq')    
+            except OSError as ose:
+                self._close_connection(fd)
                 
 
         if socket_type == 'client_socket' and socket_status == 'socks':
@@ -142,6 +158,8 @@ class ProxyServer:
                 self._close_connection(fd)
             except ConnectionResetError:
                 self._close_connection(fd)    
+            except OSError as ose:
+                self._close_connection(fd)
                 
         if socket_type == 'upstream_socket' and socket_status == 'socks':
             try:
@@ -153,21 +171,21 @@ class ProxyServer:
                 self._close_connection(fd)
             except ConnectionResetError:
                 self._close_connection(fd)    
+            except OSError as ose:
+                self._close_connection(fd)    
             
-            
-
-
-
     def _handle_event(self, fd: int, event: int) -> None:
-        if event & EPOLLHUP & EPOLLERR:
-            print('over')
-
+        if event & (EPOLLHUP | EPOLLERR | EPOLLRDHUP):
+            print('b')
+            self._close_connection(fd)
+            return
+       
         if event & EPOLLIN:
             if fd == self._server_socket_fd:
                 client_socket, addr = self._server_socket.accept()
                 self._sockets[client_socket.fileno()] = SocketConnection(sock=client_socket, type='client_socket', status='socket_accepted')
                 client_socket.setblocking(False)
-                self._epoll.register(client_socket.fileno(), EPOLLIN | EPOLLHUP | EPOLLERR)    
+                self._epoll.register(client_socket.fileno(), EPOLLIN | EPOLLHUP | EPOLLERR | EPOLLRDHUP)    
                 return
             
             if fd not in self._sockets:
@@ -177,6 +195,7 @@ class ProxyServer:
             return
         
         if event & EPOLLOUT:
+            self._epoll.modify(fd, EPOLLIN | EPOLLHUP | EPOLLERR | EPOLLRDHUP)
             self._handle_proxy(fd=fd)
             
 
@@ -188,10 +207,9 @@ class ProxyServer:
 
     
     def run(self) -> None:
-        self._server_socket.listen(1)
-        
+        self._server_socket.listen(100)
+        i = 0
         while True:
-            
             events = self._epoll.poll(timeout=-1)
             for fd, event in events:
                 self._handle_event(fd, event)
