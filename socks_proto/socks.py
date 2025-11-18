@@ -6,7 +6,7 @@ class SocksProtocolInterpreter:
         self._commands = {'connect': 1}
         self.socks_ver = 5
 
-    def interpretate_authentication_start_request(self, request: bytes) -> dict:
+    def interpretate_authentication_start_request(self, request) -> dict:
         bytes_list = list(request)
         interpreted_request = {}
 
@@ -19,11 +19,9 @@ class SocksProtocolInterpreter:
             method_counter += 1
             interpreted_request[f'auth_method{method_counter}'] = method
 
-
-        print(interpreted_request)
         return interpreted_request
 
-    def interpretate_client_request(self, request: bytes) -> dict:
+    def interpretate_client_request(self, request) -> dict:
         print(request)
         bytes_list = list(request)
         interpreted_request = {}
@@ -34,9 +32,8 @@ class SocksProtocolInterpreter:
 
         address = bytes_list[4:8]
         interpreted_request['address'] = '.'.join([str(x) for x in address])
-        interpreted_request['port'] = bytes_list[9]
-        
-        print("bytes len", len(bytes_list))
+        interpreted_request['port'] = 443
+
         return interpreted_request
 
 
