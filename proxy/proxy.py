@@ -3,7 +3,7 @@ from select import EPOLLIN, EPOLLHUP, EPOLLOUT, EPOLLERR, EPOLLRDHUP, epoll
 import time
 from socks_proto.socks import SocksProtocolInterpreter
 from proxy.socket_connection import SocketConnection
-
+from dns_proto.dns_protocol import DNSProtocol
 
 class ProxyServer:
     def __init__(self, port: int) -> None: 
@@ -16,6 +16,7 @@ class ProxyServer:
         self._server_socket.setblocking(False)
         self._server_socket.bind(self._address)
         self._server_socket_fd = self._server_socket.fileno()
+        self._dns_proto = DNSProtocol()
 
         self._epoll = epoll()
         self._epoll.register(self._server_socket.fileno(), EPOLLIN)
@@ -107,7 +108,14 @@ class ProxyServer:
             except ConnectionResetError:
                 self._close_connection(fd)    
 
+        if socket_type == 'dns_socket' and socket_status == 'wait_data':
+            data, addr = socket.recvfrom(1000)
 
+            ip = self._dns_proto.parse_dns_response(data)[1][0]
+            self._close_connection(fd)
+            # TODO: порт хардкод убрать 
+            self._create_upstream_connection_ip(pair=socket_conn._sock_meta, ip=ip, port=443)
+    
         if socket_type == 'client_socket' and socket_status == 'command_wait':
             try:
                 data = socket.recv(10240)
@@ -117,13 +125,22 @@ class ProxyServer:
                     return
             
                 request = self._socks_proto.interpretate_client_request(data)
-                
                 if request['socks_version'] != 5:
                     raise ValueError
+                
+                if request['address_type'] == self._socks_proto._address_type['DNS']:
+                    dns_sock = self._dns_proto.create_dns_sock()
+                    request['address'] = request['address'][2:-1]
+                    print(len(request['address']), 'tt')
+                    self._dns_proto.send_dns_query(sock=dns_sock, hostname=request['address'])
+                    self._epoll.register(dns_sock.fileno(), EPOLLIN)
+                    #TODO на один сокет
+                    self._sockets[dns_sock.fileno()] = SocketConnection(sock=dns_sock, type='dns_socket', status='wait_data')
+                    self._sockets[dns_sock.fileno()]._sock_meta = socket_conn
+
                 if request['address_type'] == self._socks_proto._address_type['IPv4']:
                     ip = request['address']
                     port = request['port']
-                
                     self._create_upstream_connection_ip(ip=ip, port=port, pair=socket_conn)
                 # self._sockets[fd].status = 'socks'
                 return   
@@ -162,6 +179,7 @@ class ProxyServer:
                 self._close_connection(fd)
                 
         if socket_type == 'upstream_socket' and socket_status == 'socks':
+            #TODO: сохранять buf в структуру 
             try:
                 buf = socket.recv(10000)
                 socket_conn.socket_pair.sock.send(buf)
@@ -174,9 +192,9 @@ class ProxyServer:
             except OSError as ose:
                 self._close_connection(fd)    
             
+            
     def _handle_event(self, fd: int, event: int) -> None:
         if event & (EPOLLHUP | EPOLLERR | EPOLLRDHUP):
-            print('b')
             self._close_connection(fd)
             return
        
@@ -210,6 +228,8 @@ class ProxyServer:
         self._server_socket.listen(100)
         i = 0
         while True:
+            i += 1
+            print(i)
             events = self._epoll.poll(timeout=-1)
             for fd, event in events:
                 self._handle_event(fd, event)

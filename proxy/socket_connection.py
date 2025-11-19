@@ -8,7 +8,7 @@ class SocketConnection:
         self._handle_info: str | None = None
         self._sock_pair: None | SocketConnection = None
         
-
+        self._sock_meta: None | SocketConnection = None
         
             
             
