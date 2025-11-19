@@ -137,6 +137,7 @@ class ProxyServer:
                     #TODO на один сокет
                     self._sockets[dns_sock.fileno()] = SocketConnection(sock=dns_sock, type='dns_socket', status='wait_data')
                     self._sockets[dns_sock.fileno()]._sock_meta = socket_conn
+                    
 
                 if request['address_type'] == self._socks_proto._address_type['IPv4']:
                     ip = request['address']

@@ -9,6 +9,7 @@ class SocketConnection:
         self._sock_pair: None | SocketConnection = None
         
         self._sock_meta: None | SocketConnection = None
+        self._upstream_port: None | int = None
         
             
             

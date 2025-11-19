@@ -35,21 +35,15 @@ def test_conc(proxy_url, test_file_url, test_count):
     base_file = requests.get(url=test_file_url)
 
     proxies = {'http': proxy_url, 'https': proxy_url}
-    for i in range(int(test_count)):
-        assert base_file.content == get_test_file((test_file_url, proxies)).content
+    pool = ThreadPoolExecutor(max_workers=int(test_count))
+    args = [(test_file_url, proxies) for i in range(int(test_count))]
+    results = pool.map(get_test_file, args)
+    pool.shutdown()
     
+    for res in results:
+        assert res.content == base_file.content 
 
         
-
-
-
-
-
-
-
-
-
-
 
 
 
