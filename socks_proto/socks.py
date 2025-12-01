@@ -1,5 +1,13 @@
-
 import socket
+from enum import Enum, auto
+
+class SocksMeta(Enum):
+    SOCKS_VERSION = auto()
+    ADDRESS = auto()
+    PORT = auto()
+    COMMAND = auto()
+    ADDRESS_TYPE = auto()
+
 class SocksProtocolInterpreter:
     def __init__(self) -> None:
         self._address_type = {'IPv4': 1, 'DNS': 3, 'IPv6':2}
@@ -11,7 +19,7 @@ class SocksProtocolInterpreter:
         bytes_list = list(request)
         interpreted_request = {}
 
-        interpreted_request['socks_version'] = bytes_list[0]
+        interpreted_request[SocksMeta.SOCKS_VERSION] = bytes_list[0]
         
         interpreted_request['socks_auth_methods_count'] = bytes_list[1]
 
@@ -28,28 +36,26 @@ class SocksProtocolInterpreter:
         bytes_len = len(bytes_list)
         interpreted_request = {}
 
-        interpreted_request['socks_version'] = bytes_list[0]
-        interpreted_request['command'] = bytes_list[1]
-        interpreted_request['address_type'] = bytes_list[3]
+        interpreted_request[SocksMeta.SOCKS_VERSION] = bytes_list[0]
+        interpreted_request[SocksMeta.COMMAND] = bytes_list[1]
+        interpreted_request[SocksMeta.ADDRESS_TYPE] = bytes_list[3]
         if (bytes_list[3] == 3):
             addr_len = bytes_list[4]
             addr = []
-            print(addr_len, 'address')
+            print(addr_len, SocksMeta.ADDRESS)
             index = 5
             while addr_len > 0:
                 addr.append(bytes_list[index])
                 index += 1
                 addr_len -= 1
-            interpreted_request['address'] = str(bytes(addr))
-            interpreted_request['port'] = int.from_bytes(bytes(bytes_list[index:]))
-            print(interpreted_request['port'], 'PORTTT')
+            interpreted_request[SocksMeta.ADDRESS] = str(bytes(addr))
+            interpreted_request[SocksMeta.PORT] = int.from_bytes(bytes(bytes_list[index:]))
+            print(interpreted_request[SocksMeta.PORT], 'PORTTT')
             return interpreted_request
             
-                
-
         address = bytes_list[4:8]
-        interpreted_request['address'] = '.'.join([str(x) for x in address])
-        interpreted_request['port'] = int.from_bytes(bytes(bytes_list[8:]))
+        interpreted_request[SocksMeta.ADDRESS] = '.'.join([str(x) for x in address])
+        interpreted_request[SocksMeta.PORT] = int.from_bytes(bytes(bytes_list[8:]))
 
         return interpreted_request
 

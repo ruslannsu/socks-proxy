@@ -1,7 +1,7 @@
 from socket import socket
 
 class SocketConnection:
-    def __init__(self, sock: socket, type, status: str) -> None:
+    def __init__(self, sock: socket, type, status) -> None:
         self._sock = sock
         self._type = type
         self._status = status

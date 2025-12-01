@@ -5,3 +5,9 @@ class SocketTypes(Enum):
     CLIENT_SOCKET = auto()
     DNS_SOCKET = auto()
 
+class SocketStatus(Enum):
+    SOCKET_ACCEPTED = auto()
+    COMMAND_WAIT = auto()
+    CONNECTION_WAIT = auto()
+    SOCKS = auto()
+    DATA_WAIT = auto()
