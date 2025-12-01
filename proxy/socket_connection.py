@@ -1,7 +1,7 @@
 from socket import socket
 
 class SocketConnection:
-    def __init__(self, sock: socket, type: str, status: str) -> None:
+    def __init__(self, sock: socket, type, status: str) -> None:
         self._sock = sock
         self._type = type
         self._status = status
@@ -11,7 +11,7 @@ class SocketConnection:
         self._sock_meta: None | SocketConnection = None
         self._upstream_port: None | int = None
         
-            
+    
             
 
     @property
@@ -46,11 +46,12 @@ class SocketConnection:
     def handle_info(self, handle: str):
         self._handle_info = handle    
     
-    
-    
-    
+    @property
+    def upstream_port(self):
+        return self._upstream_port
 
-
-        
+    @upstream_port.setter
+    def upstream_port(self, port):
+        self._upstream_port = port
 
     

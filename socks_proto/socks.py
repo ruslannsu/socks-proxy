@@ -42,6 +42,7 @@ class SocksProtocolInterpreter:
                 addr_len -= 1
             interpreted_request['address'] = str(bytes(addr))
             interpreted_request['port'] = int.from_bytes(bytes(bytes_list[index:]))
+            print(interpreted_request['port'], 'PORTTT')
             return interpreted_request
             
                 
