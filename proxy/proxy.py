@@ -19,11 +19,18 @@ class ProxyServer:
         self._server_socket.bind(self._address)
         self._server_socket_fd = self._server_socket.fileno()
         self._dns_proto = DNSProtocol()
-
         self._epoll = epoll()
+        self._sockets: dict[int, SocketConnection] = {}
+
+        self._dns_socket = self._dns_proto.create_dns_sock()
+        self._epoll.register(self._dns_socket.fileno(), EPOLLIN)
+
+        self._sockets[self._dns_socket.fileno()] = SocketConnection(sock=self._dns_socket, type=SocketTypes.DNS_SOCKET, status=SocketStatus.DATA_WAIT)
+        self._domains = {}
+        
         self._epoll.register(self._server_socket.fileno(), EPOLLIN)
 
-        self._sockets: dict[int, SocketConnection] = {}
+        
 
 
     def _create_upstream_connection_ip(self, ip: str, port: int, pair: SocketConnection):
@@ -39,7 +46,7 @@ class ProxyServer:
             upstream_socket.connect((ip, port))
         except ConnectionRefusedError:
             raise ConnectionRefusedError
-        except Exception:
+        except Exception as e:
             pass
         
     def _close_connection(self, fd: int) -> None:
@@ -101,13 +108,15 @@ class ProxyServer:
                 self._close_connection(fd)
 
         if socket_type == SocketTypes.DNS_SOCKET and socket_status == SocketStatus.DATA_WAIT:
-            data, addr = socket.recvfrom(1000)
-
-            ip = self._dns_proto.parse_dns_response(data)[1][0]
-            port = socket_conn.upstream_port
-            self._close_connection(fd)
+            data, _addr = socket.recvfrom(2000)
             
-            self._create_upstream_connection_ip(pair=socket_conn._sock_meta, ip=ip, port=port) 
+            _, ips, domain_name = self._dns_proto.parse_dns_response(data)
+            ip = ips[0]
+            client_socket_conn = self._domains[domain_name]
+            _port = client_socket_conn.upstream_port
+            #self._close_connection(fd)
+
+            self._create_upstream_connection_ip(pair=client_socket_conn, ip=ip, port=_port) 
             
         if socket_type == SocketTypes.CLIENT_SOCKET  and socket_status == SocketStatus.COMMAND_WAIT:
             try:
@@ -122,20 +131,17 @@ class ProxyServer:
                     raise ValueError
                 
                 if request[SocksMeta.ADDRESS_TYPE] == self._socks_proto._address_type['DNS']:
-                    dns_sock = self._dns_proto.create_dns_sock()
+                    dns_sock = self._dns_socket
                     request[SocksMeta.ADDRESS] = request[SocksMeta.ADDRESS][2:-1]
-                    print(len(request[SocksMeta.ADDRESS]), 'tt')
-                    print(request[SocksMeta.ADDRESS])
+                    socket_conn.upstream_port = request[SocksMeta.PORT]
+                    self._domains[request[SocksMeta.ADDRESS]] = socket_conn
+                    
                     self._dns_proto.send_dns_query(sock=dns_sock, hostname=request[SocksMeta.ADDRESS])
-                    self._epoll.register(dns_sock.fileno(), EPOLLIN)
-                    #TODO на один сокет
-                    self._sockets[dns_sock.fileno()] = SocketConnection(sock=dns_sock, type=SocketTypes.DNS_SOCKET, status=SocketStatus.DATA_WAIT)
-                    self._sockets[dns_sock.fileno()]._sock_meta = socket_conn
-                    self._sockets[dns_sock.fileno()].upstream_port = request[SocksMeta.PORT]
+                    
 
                 if request[SocksMeta.ADDRESS_TYPE] == self._socks_proto._address_type['IPv4']:
                     ip = request[SocksMeta.ADDRESS]
-                    port = request['port']
+                    port = request[SocksMeta.PORT]
                     self._create_upstream_connection_ip(ip=ip, port=port, pair=socket_conn)
                 # self._sockets[fd].status = 'socks'
                 return   

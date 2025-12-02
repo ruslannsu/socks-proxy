@@ -14,12 +14,10 @@ class DNSProtocol:
         query_data = query.to_wire()
         return query_data
     
-
     def create_dns_sock(self) -> socket:
         sock = socket(AF_INET, SOCK_DGRAM)
         sock.setblocking(False)
         return sock
-
         
     def send_dns_query(self, sock: socket, hostname: str):
         query_id = 12345  
@@ -30,15 +28,20 @@ class DNSProtocol:
 
     def parse_dns_response(self, data):
         try:
+            domain_name = None
             response = dns.message.from_wire(data) 
+            
+            if response.question:
+                domain_name = str(response.question[0].name).rstrip('.')  
+
             ips = []
             for answer in response.answer:
                 if answer.rdtype == dns.rdatatype.A:
                     for item in answer:
                         ips.append(item.address)
             
-            return response.id, ips
+            return response.id, ips, domain_name
             
         except Exception as e:
             print(f"DNS parse error: {e}")
-            return 0, []    
+            return 0, [], None
