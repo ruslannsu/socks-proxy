@@ -11,3 +11,6 @@ class SocketStatus(Enum):
     CONNECTION_WAIT = auto()
     SOCKS = auto()
     DATA_WAIT = auto()
+    DNS_WAIT = auto()
+    HALF_CLOSED_LOCAL = auto()   
+    HALF_CLOSED_REMOTE = auto()

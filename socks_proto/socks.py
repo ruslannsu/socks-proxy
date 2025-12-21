@@ -31,7 +31,6 @@ class SocksProtocolInterpreter:
         return interpreted_request
 
     def interpretate_client_request(self, request) -> dict:
-        #TODO: проверять на все данные
         bytes_list = list(request)
         bytes_len = len(bytes_list)
         interpreted_request = {}
